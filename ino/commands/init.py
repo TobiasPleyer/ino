@@ -7,7 +7,7 @@ from configobj import ConfigObj
 
 from ino.commands.base import Command
 from ino.exc import Abort
-from ino.utils import format_available_options, list_subdirs
+from ino.utils import format_available_options, list_subdirs, copytree
 
 
 class Init(Command):
@@ -41,49 +41,20 @@ class Init(Command):
                                                   default=self.default_template)
 
     def run(self, args):
+        templates_dir = self.e.templates_dir
+        template = args.template
+        candidate = os.path.join(templates_dir, template)
+        if not os.path.isdir(candidate):
+            w = os.walk(self.e.templates_dir)
+            found = False
+            for dirname, dirs, _ in w:
+                if template in dirs:
+                    found = True
+                    candidate = os.path.join(templates_dir, dirname, template)
+                    break
+            if not found:
+                raise Abort("Template does not exist")
         try:
-            copytree(os.path.join(self.e['templates_dir'], args.template),
-                     '.', ignore=lambda *args: ['manifest.ini'])
+            copytree(candidate, '.', ignore=lambda *args: ['manifest.ini'])
         except shutil.Error as e:
             raise Abort(str(e))
-
-
-def copytree(src, dst, symlinks=False, ignore=None):
-    """
-    Tweaked version of shutil.copy tree that allows to copy
-    to current directory
-    """
-    names = os.listdir(src)
-    if ignore is not None:
-        ignored_names = ignore(src, names)
-    else:
-        ignored_names = set()
-
-    if dst == '.':
-        if os.listdir(dst):
-            raise shutil.Error('Current directory is not empty')
-    else:
-        os.makedirs(dst)
-
-    errors = []
-    for name in names:
-        if name in ignored_names:
-            continue
-        srcname = os.path.join(src, name)
-        dstname = os.path.join(dst, name)
-        try:
-            if symlinks and os.path.islink(srcname):
-                linkto = os.readlink(srcname)
-                os.symlink(linkto, dstname)
-            elif os.path.isdir(srcname):
-                copytree(srcname, dstname, symlinks, ignore)
-            else:
-                shutil.copy2(srcname, dstname)
-        except (IOError, os.error), why:
-            errors.append((srcname, dstname, str(why)))
-        # catch the Error from the recursive copytree so that we can
-        # continue with other files
-        except shutil.Error, err:
-            errors.extend(err.args[0])
-    if errors:
-        raise shutil.Error(errors)

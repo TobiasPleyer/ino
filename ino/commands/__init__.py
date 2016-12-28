@@ -7,3 +7,4 @@ from ino.commands.clean import Clean
 from ino.commands.upload import Upload
 from ino.commands.serial import Serial
 from ino.commands.listmodels import ListModels
+from ino.commands.template import Template
